@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "aliyundriver.fullname" . }}
+  labels:
+    {{- include "aliyundriver.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "aliyundriver.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "aliyundriver.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "aliyundriver.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          env:
+            {{- toYaml .Values.environments | nindent 12 }}
+            - name: ALIYUNDRIVE_REFRESH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: ALIYUNDRIVE_REFRESH_TOKEN
+                  name: {{ include "aliyundriver.fullname" . }}-secret
+                  optional: false
+            - name: ALIYUNDRIVE_AUTH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: ALIYUNDRIVE_AUTH_PASSWORD
+                  name: {{ include "aliyundriver.fullname" . }}-secret
+                  optional: false
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          volumeMounts:
+            - mountPath: /etc/localtime
+              name: localtime
+            - mountPath: /etc/aliyun-driver/
+              name: data
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - hostPath:
+            path: /etc/localtime
+          name: localtime
+        - {{- toYaml .Values.dataVolume | nindent 10 }}
+          name: data
